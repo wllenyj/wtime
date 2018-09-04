@@ -28,13 +28,13 @@ func main() {
 				end := time.Now()
 
 				//if math.Abs(float64(end.Sub(start)-dura)) > float64(5000*time.Microsecond) {
-				if math.Abs(float64(end.Sub(start)-dura)) > float64(800*time.Millisecond) {
+				if math.Abs(float64(end.Sub(start)-dura)) > float64(500*time.Millisecond) && cnt > 1 {
 					fmt.Printf("[%s] %d execout %s %s - %s sub:%s\n", dura, cnt, t, end, start, end.Sub(start)-dura)
 				}
 			}
 		}
 	}
-	for i := 0; i < 500000; i++ {
+	for i := 0; i < 1000000; i++ {
 		n := rand.Int31n(30)
 		for ; n == 0; {
 			n = rand.Int31n(30)

@@ -14,6 +14,10 @@ func NewTimer(d time.Duration) *Timer {
 	return defWheel.NewTimer(d)
 }
 
+func NewStopedTimer() *Timer {
+	return defWheel.NewStopedTimer()
+}
+
 func Sleep(d time.Duration) {
 	defWheel.Sleep(d)
 }

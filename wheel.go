@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	TIMER_USED   uint32 = 1
-	TIMER_UNUSED uint32 = 0
+	TimerUsable   uint32 = 1
+	TimerUnusable uint32 = 0
 
 	defTimerSize = 128
 )
@@ -140,13 +140,22 @@ func (w *Wheel) newTimer(when time.Duration,
 		period:  uint32(float64(period)/float64(w.tick) + 0.5),
 		//expires: uint32(when.Round(w.tick)/w.tick),
 		//period:  uint32(period.Round(w.tick)/w.tick),
-		f:       f,
-		arg:     arg,
-		state:   TIMER_USED,
-		w:       w,
+		f:     f,
+		arg:   arg,
+		state: TimerUsable,
+		w:     w,
 	}
 	//fmt.Printf("%+v\n", t)
 	return t
+}
+
+func (w *Wheel) newStopedTimer(f timeproc, arg interface{}) *timer {
+	return &timer{
+		f:     f,
+		arg:   arg,
+		state: TimerUnusable,
+		w:     w,
+	}
 }
 
 func (w *Wheel) addTimer(t *timer) {
@@ -160,17 +169,19 @@ func (w *Wheel) delTimer(t *timer) bool {
 	if atomic.LoadUint32(&w.quited) == 1 {
 		return false
 	}
-	return atomic.CompareAndSwapUint32(&t.state, TIMER_USED, TIMER_UNUSED)
+	ret := atomic.CompareAndSwapUint32(&t.state, TimerUsable, TimerUnusable)
+	return ret
 }
 
-func (w *Wheel) resetTimer(t *timer, when, period time.Duration) bool {
+func (w *Wheel) resetTimer(t *timer, when, period time.Duration) (*timer, bool) {
 	if atomic.LoadUint32(&w.quited) == 1 {
-		return false
+		return t, false
 	}
-	ret := atomic.CompareAndSwapUint32(&t.state, TIMER_USED, TIMER_UNUSED)
+	deleted := atomic.CompareAndSwapUint32(&t.state, TimerUsable, TimerUnusable)
+	//fmt.Printf("reset %v\n", ret)
 	new_t := w.newTimer(when, period, t.f, t.arg)
 	w.add <- new_t
-	return ret
+	return new_t, deleted
 }
 
 func (w *Wheel) loop() {
@@ -359,17 +370,19 @@ func (wr *wheeler) wheel() {
 }
 
 func (wr *wheeler) onTick(t *timer, tm time.Time) {
-	if atomic.LoadUint32(&t.state) == TIMER_UNUSED {
+	//fmt.Printf("onTick %08x \n", t.expires)
+	if atomic.LoadUint32(&t.state) == TimerUnusable {
+		//fmt.Printf("Unsable return %08x \n", t.expires)
+
 		return
 	}
-	//fmt.Printf("onTick %08x \n", t.expires)
 	if t.expires == 0 {
 		t.f(tm, t.arg)
 		if t.period > 0 {
 			t.expires = t.period
 			wr.w.addTimer(t)
 		} else {
-			atomic.StoreUint32(&t.state, TIMER_UNUSED)
+			atomic.StoreUint32(&t.state, TimerUnusable)
 		}
 	} else {
 		wr.tran <- t
